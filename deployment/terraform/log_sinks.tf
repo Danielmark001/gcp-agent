@@ -68,3 +68,28 @@ module "feedback_export_to_bigquery" {
   unique_writer_identity = true
   depends_on             = [google_bigquery_dataset.feedback_dataset]
 }
+
+# Multi-Agent Metrics Export to BigQuery
+module "agent_metrics_export_to_bigquery" {
+  for_each = local.deploy_project_ids
+
+  source                 = "terraform-google-modules/log-export/google"
+  version                = "10.0.0"
+  log_sink_name          = "${var.project_name}_agent_metrics"
+  parent_resource_type   = "project"
+  parent_resource_id     = each.value
+  destination_uri        = "bigquery.googleapis.com/projects/${each.value}/datasets/${google_bigquery_dataset.agent_metrics_dataset[each.key].dataset_id}"
+  filter                 = "labels.log_type=\"agent_performance\" OR labels.log_type=\"agent_handoff\""
+  bigquery_options       = { use_partitioned_tables = true }
+  unique_writer_identity = true
+  depends_on             = [google_bigquery_dataset.agent_metrics_dataset]
+}
+
+# Grant BigQuery Data Editor role to the agent metrics log sink
+resource "google_project_iam_member" "agent_metrics_bigquery_data_editor" {
+  for_each = local.deploy_project_ids
+
+  project = each.value
+  role    = "roles/bigquery.dataEditor"
+  member  = module.agent_metrics_export_to_bigquery[each.key].writer_identity
+}

@@ -92,10 +92,88 @@ variable "cicd_roles" {
 variable "cicd_sa_deployment_required_roles" {
   description = "List of roles to assign to the CICD runner service account for the Staging and Prod projects."
   type        = list(string)
-  default = [    
+  default = [
     "roles/iam.serviceAccountUser",
     "roles/aiplatform.user",
     "roles/storage.admin"
+  ]
+}
+
+# Multi-Agent System Variables
+
+variable "orchestrator_min_instances" {
+  type        = number
+  description = "Minimum number of Cloud Run instances for multi-agent orchestrator"
+  default     = 1
+}
+
+variable "orchestrator_max_instances" {
+  type        = number
+  description = "Maximum number of Cloud Run instances for multi-agent orchestrator"
+  default     = 10
+}
+
+variable "orchestrator_cpu_limit" {
+  type        = string
+  description = "CPU limit for orchestrator container"
+  default     = "2000m"
+}
+
+variable "orchestrator_memory_limit" {
+  type        = string
+  description = "Memory limit for orchestrator container"
+  default     = "4Gi"
+}
+
+variable "orchestrator_timeout" {
+  type        = string
+  description = "Request timeout for orchestrator service"
+  default     = "3600s"
+}
+
+variable "max_agent_workers" {
+  type        = string
+  description = "Maximum number of concurrent agent workers"
+  default     = "5"
+}
+
+variable "agent_timeout_seconds" {
+  type        = string
+  description = "Timeout for individual agent tasks in seconds"
+  default     = "300"
+}
+
+variable "agent_failure_threshold" {
+  type        = number
+  description = "Threshold for agent failure rate alerts (failures per minute)"
+  default     = 10
+}
+
+variable "notification_channels" {
+  type        = list(string)
+  description = "List of notification channel IDs for alerts"
+  default     = []
+}
+
+variable "enable_multi_agent_features" {
+  type        = bool
+  description = "Enable multi-agent specific features and resources"
+  default     = true
+}
+
+variable "multi_agent_sa_roles" {
+  description = "List of roles to assign to the Multi-Agent service account"
+  type        = list(string)
+  default = [
+    "roles/aiplatform.user",
+    "roles/pubsub.publisher",
+    "roles/pubsub.subscriber",
+    "roles/datastore.user",
+    "roles/secretmanager.secretAccessor",
+    "roles/logging.logWriter",
+    "roles/cloudtrace.agent",
+    "roles/monitoring.metricWriter",
+    "roles/storage.objectViewer"
   ]
 }
 

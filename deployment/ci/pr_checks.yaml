@@ -46,6 +46,73 @@ steps:
     env:
       - 'PATH=/usr/local/bin:/usr/bin:~/.local/bin'
 
+  # Run multi-agent specific tests
+  - name: "python:3.11-slim"
+    id: multi-agent-tests
+    entrypoint: /bin/bash
+    args:
+      - "-c"
+      - |
+        if [ -d "tests/multi_agent" ]; then
+          echo "Running multi-agent specific tests..."
+          uv run pytest tests/multi_agent -v
+        else
+          echo "No multi-agent tests found, skipping..."
+        fi
+    env:
+      - 'PATH=/usr/local/bin:/usr/bin:~/.local/bin'
+
+  # Validate agent configurations
+  - name: "python:3.11-slim"
+    id: validate-configs
+    entrypoint: /bin/bash
+    args:
+      - "-c"
+      - |
+        uv add pyyaml
+        uv run python -c "
+        import yaml
+        import sys
+        import os
+        from pathlib import Path
+
+        config_dir = Path('deployment/config')
+        errors = []
+
+        for env in ['dev', 'staging', 'prod']:
+            config_file = config_dir / env / 'agent_config.yaml'
+            if config_file.exists():
+                try:
+                    with open(config_file) as f:
+                        config = yaml.safe_load(f)
+                        print(f'✓ {env} configuration is valid')
+                except Exception as e:
+                    errors.append(f'✗ {env} configuration error: {e}')
+            else:
+                errors.append(f'✗ {env} configuration file not found')
+
+        if errors:
+            for error in errors:
+                print(error)
+            sys.exit(1)
+        else:
+            print('All configurations are valid!')
+        "
+    env:
+      - 'PATH=/usr/local/bin:/usr/bin:~/.local/bin'
+
+  # Code quality checks
+  - name: "python:3.11-slim"
+    id: code-quality
+    entrypoint: /bin/bash
+    args:
+      - "-c"
+      - |
+        uv run ruff check app/ || echo "Ruff checks completed with warnings"
+        uv run mypy app/ --ignore-missing-imports || echo "MyPy checks completed with warnings"
+    env:
+      - 'PATH=/usr/local/bin:/usr/bin:~/.local/bin'
+
 logsBucket: gs://${PROJECT_ID}-my-agent-logs-data/build-logs
 options:
   defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET

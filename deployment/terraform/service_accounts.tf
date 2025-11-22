@@ -19,5 +19,31 @@ resource "google_service_account" "cicd_runner_sa" {
   depends_on   = [resource.google_project_service.cicd_services, resource.google_project_service.shared_services]
 }
 
+# Service Account for Multi-Agent System
+resource "google_service_account" "multi_agent_sa" {
+  for_each = local.deploy_project_ids
+
+  account_id   = "${var.project_name}-multi-agent"
+  display_name = "Multi-Agent System Service Account"
+  project      = each.value
+  description  = "Service account for multi-agent orchestration and execution"
+  depends_on   = [resource.google_project_service.shared_services]
+}
+
+# IAM Bindings for Multi-Agent Service Account
+resource "google_project_iam_member" "multi_agent_sa_roles" {
+  for_each = {
+    for pair in setproduct(keys(local.deploy_project_ids), var.multi_agent_sa_roles) :
+    "${pair[0]}_${pair[1]}" => {
+      project = local.deploy_project_ids[pair[0]]
+      role    = pair[1]
+    }
+  }
+
+  project    = each.value.project
+  role       = each.value.role
+  member     = "serviceAccount:${google_service_account.multi_agent_sa[split("_", each.key)[0]].email}"
+  depends_on = [google_service_account.multi_agent_sa]
+}
 
 
