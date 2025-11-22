@@ -12,17 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Main agent module with multi-agent system integration.
+
+This module provides both:
+1. A simple root agent for basic tasks (backward compatibility)
+2. A multi-agent system for complex, coordinated tasks
+"""
+
 import datetime
 import os
 from zoneinfo import ZoneInfo
 
 import google.auth
-from google.adk.agents import Agent
+
+from app.agents.registry import get_agent_registry
+from app.config.agent_config import get_agent_config
 
 _, project_id = google.auth.default()
-os.environ.setdefault("GOOGLE_CLOUD_PROJECT", project_id)
+if project_id:
+    os.environ.setdefault("GOOGLE_CLOUD_PROJECT", project_id)
 os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "us-central1")
 os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "True")
+
+
+# ============================================================================
+# Simple utility tools (for backward compatibility and basic operations)
+# ============================================================================
 
 
 def get_weather(query: str) -> str:
@@ -43,7 +58,7 @@ def get_current_time(query: str) -> str:
     """Simulates getting the current time for a city.
 
     Args:
-        city: The name of the city to get the current time for.
+        query: The name of the city to get the current time for.
 
     Returns:
         A string with the current time information.
@@ -58,9 +73,71 @@ def get_current_time(query: str) -> str:
     return f"The current time for query {query} is {now.strftime('%Y-%m-%d %H:%M:%S %Z%z')}"
 
 
-root_agent = Agent(
+# ============================================================================
+# Multi-Agent System Setup
+# ============================================================================
+
+# Initialize agent configuration
+agent_config = get_agent_config()
+
+# Initialize agent registry and create multi-agent system
+agent_registry = get_agent_registry(config=agent_config)
+
+# Create the complete multi-agent system
+# This sets up the coordinator and all specialized agents
+coordinator_agent = agent_registry.create_multi_agent_system()
+
+# For backward compatibility, create a simple root_agent with basic tools
+# This maintains the original behavior while also providing multi-agent capabilities
+from google.adk.agents import Agent as ADKAgent
+
+root_agent = ADKAgent(
     name="root_agent",
     model="gemini-2.0-flash",
     instruction="You are a helpful AI assistant designed to provide accurate and useful information.",
     tools=[get_weather, get_current_time],
 )
+
+
+# ============================================================================
+# Helper functions for accessing the multi-agent system
+# ============================================================================
+
+
+def get_coordinator() -> object:
+    """Get the coordinator agent instance.
+
+    Returns:
+        The coordinator agent that orchestrates the multi-agent system.
+    """
+    return coordinator_agent
+
+
+def get_specialized_agent(agent_name: str) -> object:
+    """Get a specialized agent by name.
+
+    Args:
+        agent_name: Name of the agent to retrieve.
+
+    Returns:
+        The specialized agent instance or None if not found.
+    """
+    return agent_registry.get_agent(agent_name)
+
+
+def get_all_agents() -> dict[str, object]:
+    """Get all registered agents.
+
+    Returns:
+        Dictionary mapping agent names to agent instances.
+    """
+    return agent_registry.get_all_agents()
+
+
+def get_agent_registry_instance() -> object:
+    """Get the global agent registry instance.
+
+    Returns:
+        The agent registry managing all agents.
+    """
+    return agent_registry

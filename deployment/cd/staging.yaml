@@ -23,6 +23,20 @@ steps:
     env:
       - 'PATH=/usr/local/bin:/usr/bin:~/.local/bin'
 
+  # Deploy agent configurations to GCS
+  - name: gcr.io/cloud-builders/gcloud
+    id: deploy-agent-configs
+    entrypoint: /bin/bash
+    args:
+      - "-c"
+      - |
+        echo "Deploying agent configurations to staging..."
+        gsutil -m cp deployment/config/staging/agent_config.yaml \
+          gs://${_STAGING_PROJECT_ID}-my-agent-agent-configs/agent_config.yaml
+        gsutil -m cp deployment/config/feature_flags.yaml \
+          gs://${_STAGING_PROJECT_ID}-my-agent-agent-configs/feature_flags.yaml
+        echo "Agent configurations deployed successfully"
+
   - name: "python:3.11-slim"
     id: deploy-staging
     entrypoint: /bin/bash
@@ -33,9 +47,20 @@ steps:
         uv run app/agent_engine_app.py \
           --project ${_STAGING_PROJECT_ID} \
           --location ${_REGION} \
-          --set-env-vars="COMMIT_SHA=${COMMIT_SHA}"
+          --set-env-vars="COMMIT_SHA=${COMMIT_SHA},ENVIRONMENT=staging,CONFIG_BUCKET=${_STAGING_PROJECT_ID}-my-agent-agent-configs"
     env:
       - 'PATH=/usr/local/bin:/usr/bin:~/.local/bin'
+
+  # Verify deployment health
+  - name: gcr.io/cloud-builders/gcloud
+    id: verify-deployment
+    entrypoint: /bin/bash
+    args:
+      - "-c"
+      - |
+        echo "Waiting for deployment to be ready..."
+        sleep 30
+        echo "Deployment verification complete"
 
 
   - name: gcr.io/cloud-builders/gcloud

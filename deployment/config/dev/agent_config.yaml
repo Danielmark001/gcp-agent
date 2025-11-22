@@ -1,0 +1,98 @@
+# Multi-Agent System Configuration - Development Environment
+# This file defines the configuration for the multi-agent system in the dev environment
+
+environment: dev
+
+# Agent Configuration
+agents:
+  orchestrator:
+    enabled: true
+    model: gemini-2.0-flash
+    max_retries: 3
+    timeout_seconds: 300
+    log_level: DEBUG
+
+  specialist_agents:
+    - name: research_agent
+      type: research
+      enabled: true
+      model: gemini-2.0-flash
+      max_concurrent_tasks: 3
+      timeout_seconds: 180
+
+    - name: code_agent
+      type: code_generation
+      enabled: true
+      model: gemini-2.0-flash
+      max_concurrent_tasks: 2
+      timeout_seconds: 240
+
+    - name: analysis_agent
+      type: data_analysis
+      enabled: true
+      model: gemini-2.0-flash
+      max_concurrent_tasks: 2
+      timeout_seconds: 180
+
+# Resource Limits
+resources:
+  orchestrator:
+    min_instances: 1
+    max_instances: 3
+    cpu_limit: "1000m"
+    memory_limit: "2Gi"
+
+  worker_agents:
+    min_instances: 0
+    max_instances: 5
+    cpu_limit: "1000m"
+    memory_limit: "2Gi"
+
+# Queue Configuration
+queue:
+  task_queue:
+    max_messages: 1000
+    visibility_timeout: 600
+    retention_period: 86400
+
+  result_queue:
+    max_messages: 1000
+    visibility_timeout: 300
+    retention_period: 86400
+
+# Feature Flags
+features:
+  enable_handoff: true
+  enable_parallel_execution: true
+  enable_task_prioritization: false
+  enable_auto_scaling: true
+  enable_detailed_tracing: true
+  enable_cost_tracking: true
+
+# Monitoring
+monitoring:
+  metrics_interval: 60
+  trace_sampling_rate: 1.0
+  log_level: DEBUG
+  enable_custom_metrics: true
+
+# Rate Limits
+rate_limits:
+  requests_per_minute: 100
+  tokens_per_minute: 50000
+  max_concurrent_requests: 10
+
+# Secrets
+secrets:
+  api_keys_secret: "my-agent-agent-api-keys"
+
+# Storage
+storage:
+  state_database: "my-agent-agent-state"
+  config_bucket: "my-agent-agent-configs"
+
+# Telemetry
+telemetry:
+  project_id: "${PROJECT_ID}"
+  trace_export_interval: 5
+  metric_export_interval: 60

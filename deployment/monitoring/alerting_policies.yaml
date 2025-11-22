@@ -1,0 +1,214 @@
+# Multi-Agent System Alerting Policies
+# This file defines alerting policies for monitoring the multi-agent system
+
+alerting_policies:
+  # Critical Alerts - Require immediate attention
+  critical:
+    - name: "agent-high-error-rate"
+      display_name: "Multi-Agent System: High Error Rate"
+      documentation:
+        content: |
+          The multi-agent system is experiencing a high error rate.
+
+          Troubleshooting steps:
+          1. Check Cloud Logging for error details
+          2. Verify agent configurations are correct
+          3. Check if external API dependencies are available
+          4. Review recent deployments for potential issues
+          5. Check resource quotas and limits
+      combiner: "OR"
+      conditions:
+        - display_name: "5xx Error Rate > 10 per minute"
+          condition_threshold:
+            filter: 'resource.type="cloud_run_revision" AND metric.type="run.googleapis.com/request_count" AND metric.labels.response_code_class="5xx"'
+            comparison: "COMPARISON_GT"
+            threshold_value: 10
+            duration: "300s"
+            aggregations:
+              - alignment_period: "60s"
+                per_series_aligner: "ALIGN_RATE"
+      notification_channels: ["${CRITICAL_NOTIFICATION_CHANNEL}"]
+      alert_strategy:
+        auto_close: "1800s"
+        notification_rate_limit:
+          period: "300s"
+
+    - name: "agent-system-down"
+      display_name: "Multi-Agent System: Service Unavailable"
+      documentation:
+        content: |
+          The multi-agent orchestrator service is not responding.
+
+          Troubleshooting steps:
+          1. Check Cloud Run service status
+          2. Verify service has running instances
+          3. Check service logs for startup errors
+          4. Verify IAM permissions are correct
+          5. Check if deployment is in progress
+      combiner: "OR"
+      conditions:
+        - display_name: "No successful requests in 5 minutes"
+          condition_threshold:
+            filter: 'resource.type="cloud_run_revision" AND metric.type="run.googleapis.com/request_count" AND metric.labels.response_code_class="2xx"'
+            comparison: "COMPARISON_LT"
+            threshold_value: 1
+            duration: "300s"
+            aggregations:
+              - alignment_period: "60s"
+                per_series_aligner: "ALIGN_SUM"
+      notification_channels: ["${CRITICAL_NOTIFICATION_CHANNEL}"]
+      alert_strategy:
+        auto_close: "600s"
+
+  # Warning Alerts - Should be investigated
+  warning:
+    - name: "agent-high-latency"
+      display_name: "Multi-Agent System: High Response Latency"
+      documentation:
+        content: |
+          Agent response times are higher than normal.
+
+          Possible causes:
+          1. Increased load - check if auto-scaling is working
+          2. Slow external API calls
+          3. Database performance issues
+          4. Large or complex agent tasks
+      combiner: "OR"
+      conditions:
+        - display_name: "P95 Latency > 5 seconds"
+          condition_threshold:
+            filter: 'resource.type="cloud_run_revision" AND metric.type="run.googleapis.com/request_latencies"'
+            comparison: "COMPARISON_GT"
+            threshold_value: 5000
+            duration: "600s"
+            aggregations:
+              - alignment_period: "60s"
+                per_series_aligner: "ALIGN_DELTA"
+                cross_series_reducer: "REDUCE_PERCENTILE_95"
+      notification_channels: ["${WARNING_NOTIFICATION_CHANNEL}"]
+      alert_strategy:
+        auto_close: "3600s"
+
+    - name: "agent-queue-backup"
+      display_name: "Multi-Agent System: Task Queue Backlog"
+      documentation:
+        content: |
+          The agent task queue has a significant backlog.
+
+          Actions to take:
+          1. Check if worker agents are processing tasks
+          2. Verify auto-scaling is enabled and working
+          3. Check for stuck or long-running tasks
+          4. Consider manually scaling up instances
+      combiner: "OR"
+      conditions:
+        - display_name: "Undelivered messages > 1000"
+          condition_threshold:
+            filter: 'resource.type="pubsub_subscription" AND metric.type="pubsub.googleapis.com/subscription/num_undelivered_messages"'
+            comparison: "COMPARISON_GT"
+            threshold_value: 1000
+            duration: "300s"
+            aggregations:
+              - alignment_period: "60s"
+                per_series_aligner: "ALIGN_MAX"
+      notification_channels: ["${WARNING_NOTIFICATION_CHANNEL}"]
+      alert_strategy:
+        auto_close: "1800s"
+
+    - name: "agent-handoff-failures"
+      display_name: "Multi-Agent System: High Handoff Failure Rate"
+      documentation:
+        content: |
+          Agent-to-agent handoffs are failing at a high rate.
+
+          Investigation steps:
+          1. Check logs for handoff errors
+          2. Verify all specialist agents are running
+          3. Check Pub/Sub topic and subscription health
+          4. Verify agent configurations are correct
+      combiner: "OR"
+      conditions:
+        - display_name: "Handoff failures > 5 per minute"
+          condition_threshold:
+            filter: 'resource.type="global" AND metric.type="logging.googleapis.com/user/agent_handoff_failure"'
+            comparison: "COMPARISON_GT"
+            threshold_value: 5
+            duration: "300s"
+            aggregations:
+              - alignment_period: "60s"
+                per_series_aligner: "ALIGN_RATE"
+      notification_channels: ["${WARNING_NOTIFICATION_CHANNEL}"]
+      alert_strategy:
+        auto_close: "1800s"
+
+  # Info Alerts - Informational only
+  info:
+    - name: "agent-high-token-usage"
+      display_name: "Multi-Agent System: High Token Usage"
+      documentation:
+        content: |
+          Token usage is higher than normal, which may impact costs.
+
+          Review:
+          1. Check which agents are using the most tokens
+          2. Review task complexity
+          3. Consider optimizing prompts
+          4. Check if caching can be enabled
+      combiner: "OR"
+      conditions:
+        - display_name: "Token usage > 1M per hour"
+          condition_threshold:
+            filter: 'resource.type="global" AND metric.type="aiplatform.googleapis.com/prediction/token_count"'
+            comparison: "COMPARISON_GT"
+            threshold_value: 1000000
+            duration: "3600s"
+            aggregations:
+              - alignment_period: "3600s"
+                per_series_aligner: "ALIGN_SUM"
+      notification_channels: ["${INFO_NOTIFICATION_CHANNEL}"]
+      alert_strategy:
+        auto_close: "7200s"
+
+    - name: "agent-scaling-event"
+      display_name: "Multi-Agent System: Auto-Scaling Event"
+      documentation:
+        content: |
+          The system has automatically scaled up or down.
+          This is informational only.
+      combiner: "OR"
+      conditions:
+        - display_name: "Instance count changed by > 3"
+          condition_threshold:
+            filter: 'resource.type="cloud_run_revision" AND metric.type="run.googleapis.com/container/instance_count"'
+            comparison: "COMPARISON_GT"
+            threshold_value: 3
+            duration: "60s"
+            aggregations:
+              - alignment_period: "60s"
+                per_series_aligner: "ALIGN_DELTA"
+      notification_channels: ["${INFO_NOTIFICATION_CHANNEL}"]
+      alert_strategy:
+        auto_close: "600s"
+
+# SLO Definitions
+slos:
+  - name: "agent-availability-slo"
+    display_name: "Multi-Agent System Availability SLO"
+    goal: 0.999  # 99.9% availability
+    rolling_period_days: 30
+    service_level_indicator:
+      request_based:
+        good_total_ratio:
+          good_service_filter: 'resource.type="cloud_run_revision" AND metric.type="run.googleapis.com/request_count" AND metric.labels.response_code_class="2xx"'
+          total_service_filter: 'resource.type="cloud_run_revision" AND metric.type="run.googleapis.com/request_count"'
+
+  - name: "agent-latency-slo"
+    display_name: "Multi-Agent System Latency SLO"
+    goal: 0.95  # 95% of requests under 3 seconds
+    rolling_period_days: 7
+    service_level_indicator:
+      request_based:
+        distribution_cut:
+          distribution_filter: 'resource.type="cloud_run_revision" AND metric.type="run.googleapis.com/request_latencies"'
+          range:
+            max: 3000  # 3 seconds in milliseconds

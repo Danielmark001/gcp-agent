@@ -1,0 +1,238 @@
+# Multi-Agent System Tracing Configuration
+# This file defines OpenTelemetry tracing configuration for multi-agent flows
+
+tracing:
+  # Global Tracing Settings
+  enabled: true
+  exporter: "google_cloud_trace"
+
+  # Sampling Configuration
+  sampling:
+    # Sampling strategy: always_on, always_off, trace_id_ratio, parent_based
+    strategy: "parent_based"
+
+    # Environment-specific sampling rates
+    rates:
+      dev:
+        default: 1.0  # 100% sampling in dev
+        agent_handoff: 1.0
+        agent_execution: 1.0
+      staging:
+        default: 0.5  # 50% sampling in staging
+        agent_handoff: 1.0  # Always trace handoffs
+        agent_execution: 0.3
+      prod:
+        default: 0.1  # 10% sampling in production
+        agent_handoff: 0.5
+        agent_execution: 0.05
+
+  # Trace Export Configuration
+  export:
+    batch_timeout_ms: 5000
+    max_batch_size: 512
+    max_queue_size: 2048
+    export_timeout_ms: 30000
+
+  # Instrumentation
+  instrumentation:
+    # Automatic instrumentation for common libraries
+    auto_instrumentation:
+      enabled: true
+      libraries:
+        - requests
+        - google-cloud-aiplatform
+        - google-cloud-pubsub
+        - google-cloud-firestore
+        - google-cloud-bigquery
+
+    # Custom instrumentation points
+    custom_spans:
+      - name: "agent.orchestrator.request"
+        description: "Tracks the entire multi-agent request lifecycle"
+        attributes:
+          - user_id
+          - session_id
+          - request_type
+          - total_agents_used
+
+      - name: "agent.handoff"
+        description: "Tracks agent-to-agent handoffs"
+        attributes:
+          - source_agent_id
+          - source_agent_type
+          - target_agent_id
+          - target_agent_type
+          - handoff_reason
+          - handoff_latency_ms
+
+      - name: "agent.execution"
+        description: "Tracks individual agent task execution"
+        attributes:
+          - agent_id
+          - agent_type
+          - task_id
+          - task_type
+          - execution_duration_ms
+          - tokens_used
+          - model_name
+          - success
+
+      - name: "agent.tool_call"
+        description: "Tracks tool/function calls made by agents"
+        attributes:
+          - agent_id
+          - tool_name
+          - tool_duration_ms
+          - tool_success
+
+      - name: "pubsub.publish"
+        description: "Tracks Pub/Sub message publishing"
+        attributes:
+          - topic_name
+          - message_id
+          - message_size_bytes
+
+      - name: "pubsub.subscribe"
+        description: "Tracks Pub/Sub message consumption"
+        attributes:
+          - subscription_name
+          - message_id
+          - ack_latency_ms
+
+      - name: "firestore.read"
+        description: "Tracks Firestore read operations"
+        attributes:
+          - collection
+          - document_id
+          - read_duration_ms
+
+      - name: "firestore.write"
+        description: "Tracks Firestore write operations"
+        attributes:
+          - collection
+          - document_id
+          - write_duration_ms
+          - write_type  # create, update, delete
+
+      - name: "bigquery.insert"
+        description: "Tracks BigQuery insert operations"
+        attributes:
+          - dataset_id
+          - table_id
+          - rows_inserted
+
+  # Span Attributes
+  default_attributes:
+    - name: "environment"
+      value: "${ENVIRONMENT}"
+    - name: "service.name"
+      value: "multi-agent-system"
+    - name: "service.version"
+      value: "${COMMIT_SHA}"
+    - name: "deployment.region"
+      value: "${REGION}"
+
+  # Resource Detection
+  resource_detection:
+    enabled: true
+    detectors:
+      - gcp
+      - env
+      - process
+
+  # Propagation
+  propagation:
+    # W3C Trace Context is the standard
+    format: "w3c_trace_context"
+    # Also support Google Cloud Trace format for backward compatibility
+    additional_formats:
+      - "google_cloud_trace"
+
+  # Performance Optimization
+  performance:
+    # Don't trace very fast operations to reduce overhead
+    min_duration_ms: 10
+
+    # Limit span attributes to reduce payload size
+    max_attributes_per_span: 50
+    max_events_per_span: 100
+    max_links_per_span: 100
+
+  # Custom Metrics from Spans
+  span_metrics:
+    enabled: true
+    metrics:
+      - name: "agent.handoff.duration"
+        description: "Duration of agent handoffs"
+        unit: "ms"
+        span_name: "agent.handoff"
+        attribute: "handoff_latency_ms"
+
+      - name: "agent.execution.duration"
+        description: "Duration of agent task execution"
+        unit: "ms"
+        span_name: "agent.execution"
+        attribute: "execution_duration_ms"
+
+      - name: "agent.token.usage"
+        description: "Tokens used per agent execution"
+        unit: "1"
+        span_name: "agent.execution"
+        attribute: "tokens_used"
+
+  # Error Tracking
+  error_tracking:
+    enabled: true
+    # Automatically mark spans as errors based on these conditions
+    error_conditions:
+      - status_code: "ERROR"
+      - attribute_name: "success"
+        attribute_value: "false"
+      - exception_occurred: true
+
+# Distributed Tracing Context Propagation
+context_propagation:
+  # Headers to propagate trace context
+  headers:
+    - "traceparent"  # W3C standard
+    - "tracestate"   # W3C standard
+    - "x-cloud-trace-context"  # Google Cloud
+    - "x-agent-request-id"  # Custom request ID
+
+  # Baggage for cross-service metadata
+  baggage:
+    enabled: true
+    max_items: 20
+    max_bytes_per_item: 256
+
+# Trace Analysis
+analysis:
+  # Automatically detect and report trace anomalies
+  anomaly_detection:
+    enabled: true
+    thresholds:
+      # Alert if trace duration is > 3x P95
+      duration_multiplier: 3.0
+      # Alert if span count is > 2x normal
+      span_count_multiplier: 2.0
+
+  # Trace sampling for analysis
+  analysis_sampling:
+    # Always sample slow traces
+    slow_traces:
+      enabled: true
+      min_duration_ms: 5000
+
+    # Always sample error traces
+    error_traces:
+      enabled: true
+
+# Integration with Cloud Logging
+logging_integration:
+  enabled: true
+  # Include trace ID in log entries
+  include_trace_id: true
+  # Include span ID in log entries
+  include_span_id: true
+  # Correlate logs with traces
+  correlate_logs: true

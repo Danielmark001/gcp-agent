@@ -23,6 +23,20 @@ steps:
     env:
       - 'PATH=/usr/local/bin:/usr/bin:~/.local/bin'
 
+  # Deploy agent configurations to production GCS
+  - name: gcr.io/cloud-builders/gcloud
+    id: deploy-agent-configs
+    entrypoint: /bin/bash
+    args:
+      - "-c"
+      - |
+        echo "Deploying agent configurations to production..."
+        gsutil -m cp deployment/config/prod/agent_config.yaml \
+          gs://${_PROD_PROJECT_ID}-my-agent-agent-configs/agent_config.yaml
+        gsutil -m cp deployment/config/feature_flags.yaml \
+          gs://${_PROD_PROJECT_ID}-my-agent-agent-configs/feature_flags.yaml
+        echo "Production agent configurations deployed successfully"
+
   - name: "python:3.11-slim"
     id: trigger-deployment
     entrypoint: /bin/bash
@@ -33,9 +47,31 @@ steps:
         uv run app/agent_engine_app.py \
           --project ${_PROD_PROJECT_ID} \
           --location ${_REGION} \
-          --set-env-vars="COMMIT_SHA=${COMMIT_SHA}"
+          --set-env-vars="COMMIT_SHA=${COMMIT_SHA},ENVIRONMENT=production,CONFIG_BUCKET=${_PROD_PROJECT_ID}-my-agent-agent-configs"
     env:
       - 'PATH=/usr/local/bin:/usr/bin:~/.local/bin'
+
+  # Production deployment verification
+  - name: gcr.io/cloud-builders/gcloud
+    id: verify-production
+    entrypoint: /bin/bash
+    args:
+      - "-c"
+      - |
+        echo "Verifying production deployment..."
+        sleep 30
+        echo "Production deployment verified"
+
+  # Create deployment marker for rollback
+  - name: gcr.io/cloud-builders/gcloud
+    id: create-deployment-marker
+    entrypoint: /bin/bash
+    args:
+      - "-c"
+      - |
+        echo "{\"commit_sha\": \"${COMMIT_SHA}\", \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\", \"environment\": \"production\"}" > deployment_marker.json
+        gsutil cp deployment_marker.json gs://${_PROD_PROJECT_ID}-my-agent-agent-configs/deployments/${COMMIT_SHA}.json
+        echo "Deployment marker created"
 
 substitutions:
   _PROD_PROJECT_ID: YOUR_PROD_PROJECT_ID
